@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Proof of Human — Sybil Resistance for Web3</title>
+<meta name="description" content="Mobile-native sybil resistance. Tap a dot, get a signed proof. No KYC. No orb. $0.10/verify."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+:root {
+  --bg: #0A0A0A;
+  --bg1: #0f0f0f;
+  --primary: #00D4FF;
+  --primary-dim: rgba(0,212,255,0.12);
+  --primary-glow: rgba(0,212,255,0.35);
+  --secondary: #7B2FFF;
+  --secondary-dim: rgba(123,47,255,0.12);
+  --secondary-glow: rgba(123,47,255,0.35);
+  --surface: rgba(255,255,255,0.04);
+  --surface2: rgba(255,255,255,0.07);
+  --border: rgba(255,255,255,0.08);
+  --border-bright: rgba(255,255,255,0.15);
+  --text: #F0F0F0;
+  --muted: #6B7280;
+  --muted2: #9CA3AF;
+  --mono: 'JetBrains Mono', monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+/* ── Noise texture overlay ── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9998;opacity:0.4;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--primary),var(--secondary));border-radius:3px}
+
+/* ── Scroll progress bar ── */
+#progress-bar{
+  position:fixed;top:0;left:0;height:2px;z-index:9999;width:0%;
+  background:linear-gradient(90deg,var(--primary),var(--secondary),var(--primary));
+  background-size:200% 100%;
+  animation:progress-shimmer 2s linear infinite;
+  transition:width 0.08s linear;
+  box-shadow:0 0 12px var(--primary-glow);
+}
+@keyframes progress-shimmer{0%{background-position:200% 0}100%{background-position:0% 0}}
+
+/* ── BACKGROUND ORBS ── */
+.orb-container{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(100px)}
+.orb-1{width:700px;height:700px;top:-300px;left:-200px;background:var(--primary);opacity:0.1;animation:orb1 20s ease-in-out infinite}
+.orb-2{width:600px;height:600px;bottom:-200px;right:-200px;background:var(--secondary);opacity:0.12;animation:orb2 25s ease-in-out infinite}
+.orb-3{width:400px;height:400px;top:45%;left:50%;transform:translate(-50%,-50%);background:radial-gradient(circle,var(--primary) 0%,var(--secondary) 100%);opacity:0.05;animation:orb3 18s ease-in-out infinite}
+@keyframes orb1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(100px,80px) scale(1.1)}66%{transform:translate(-50px,140px) scale(0.92)}}
+@keyframes orb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-120px,-100px) scale(1.2)}}
+@keyframes orb3{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.3) rotate(20deg)}}
+
+/* ── GRID PATTERN ── */
+.grid-bg{
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+                   linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%);
+}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 1.5rem;transition:all 0.4s ease}
+nav.scrolled{background:rgba(10,10,10,0.75);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-bottom:1px solid var(--border)}
+.nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:68px}
+.nav-logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:0.95rem;letter-spacing:-0.025em;text-decoration:none;color:var(--text)}
+.logo-mark{width:28px;height:28px;position:relative;display:flex;align-items:center;justify-content:center}
+.logo-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--primary);
+  box-shadow:0 0 0 0 var(--primary-glow);
+  animation:logo-pulse 2.2s ease-in-out infinite;
+}
+.logo-ring{
+  position:absolute;inset:0;border-radius:50%;border:1px solid rgba(0,212,255,0.3);
+  animation:logo-ring-pulse 2.2s ease-in-out infinite;
+}
+@keyframes logo-pulse{0%,100%{box-shadow:0 0 0 0 var(--primary-glow),0 0 10px var(--primary)}50%{box-shadow:0 0 0 8px rgba(0,212,255,0),0 0 20px var(--primary)}}
+@keyframes logo-ring-pulse{0%,100%{transform:scale(1);opacity:0.3}50%{transform:scale(1.4);opacity:0}}
+.nav-links{display:flex;align-items:center;gap:2.25rem}
+.nav-links a{font-size:0.875rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color 0.2s;letter-spacing:-0.01em}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{
+  background:var(--primary)!important;color:#000!important;
+  padding:0.5rem 1.25rem;border-radius:7px;
+  font-weight:700!important;font-size:0.825rem!important;letter-spacing:-0.01em;
+  transition:all 0.2s!important;box-shadow:0 0 20px var(--primary-glow);
+}
+.nav-cta:hover{opacity:0.9;transform:translateY(-1px);box-shadow:0 0 32px var(--primary-glow)!important}
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;background:none;border:none;padding:4px}
+.hamburger span{display:block;width:22px;height:1.5px;background:var(--text);border-radius:2px;transition:all 0.3s ease}
+.hamburger.open span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
+.hamburger.open span:nth-child(2){opacity:0;transform:scaleX(0)}
+.hamburger.open span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
+.mobile-menu{
+  display:none;position:fixed;top:68px;left:0;right:0;
+  background:rgba(10,10,10,0.96);backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--border);padding:2rem 1.5rem;
+  flex-direction:column;gap:1.5rem;z-index:99;
+}
+.mobile-menu.open{display:flex}
+.mobile-menu a{font-size:1rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color 0.2s}
+.mobile-menu a:hover{color:var(--text)}
+.mobile-menu .nav-cta{display:inline-block;text-align:center;margin-top:0.5rem}
+
+/* ── HERO ── */
+.hero{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;padding:140px 1.5rem 100px}
+.hero-inner{max-width:1200px;margin:0 auto;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center}
+
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(0,212,255,0.07);border:1px solid rgba(0,212,255,0.18);
+  border-radius:100px;padding:5px 14px;
+  font-size:0.72rem;font-weight:600;color:var(--primary);
+  letter-spacing:0.08em;text-transform:uppercase;
+  margin-bottom:1.75rem;
+  opacity:0;animation:fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.1s forwards;
+}
+.badge-dot{width:5px;height:5px;border-radius:50%;background:var(--primary);animation:logo-pulse 2s infinite}
+
+h1{
+  font-size:clamp(3rem,5.5vw,5rem);font-weight:900;line-height:1.02;
+  letter-spacing:-0.05em;
+  opacity:0;animation:fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.2s forwards;
+}
+.grad{
+  background:linear-gradient(135deg,var(--primary) 0%,#00a8ff 40%,var(--secondary) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.hero-sub{
+  font-size:1.1rem;line-height:1.75;color:var(--muted2);
+  margin-top:1.5rem;max-width:460px;font-weight:400;
+  opacity:0;animation:fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.32s forwards;
+}
+.hero-actions{
+  display:flex;align-items:center;gap:1rem;margin-top:2.5rem;flex-wrap:wrap;
+  opacity:0;animation:fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.45s forwards;
+}
+.btn-primary{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--primary);color:#000;
+  padding:0.875rem 1.75rem;border-radius:8px;
+  font-weight:700;font-size:0.9rem;letter-spacing:-0.01em;
+  text-decoration:none;transition:all 0.25s cubic-bezier(0.22,1,0.36,1);
+  box-shadow:0 0 0 1px rgba(0,212,255,0.3),0 8px 32px rgba(0,212,255,0.25);
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(0,212,255,0.5),0 16px 48px rgba(0,212,255,0.35)}
+.btn-secondary{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--surface2);color:var(--muted2);
+  border:1px solid var(--border);
+  padding:0.875rem 1.75rem;border-radius:8px;
+  font-weight:600;font-size:0.9rem;letter-spacing:-0.01em;
+  text-decoration:none;transition:all 0.25s;
+}
+.btn-secondary:hover{background:rgba(255,255,255,0.09);border-color:var(--border-bright);color:var(--text);transform:translateY(-1px)}
+.hero-pills{
+  display:flex;align-items:center;gap:0.75rem;margin-top:2.25rem;flex-wrap:wrap;
+  opacity:0;animation:fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.58s forwards;
+}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:100px;padding:5px 12px;
+  font-size:0.8rem;font-weight:500;color:var(--muted2);
+  letter-spacing:-0.01em;
+}
+.pill-dot{width:5px;height:5px;border-radius:50%}
+.pill-dot-cyan{background:var(--primary);box-shadow:0 0 6px var(--primary)}
+.pill-dot-purple{background:var(--secondary);box-shadow:0 0 6px var(--secondary)}
+.pill-dot-green{background:#22C55E;box-shadow:0 0 6px #22C55E}
+
+/* ── FINGERPRINT ── */
+.fp-wrapper{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  opacity:0;animation:fadeIn 1.2s ease 0.5s forwards;
+}
+.fp-stage{
+  position:relative;width:360px;height:360px;
+  display:flex;align-items:center;justify-content:center;
+}
+.fp-glow-bg{
+  position:absolute;inset:-40px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,212,255,0.15) 0%,rgba(123,47,255,0.08) 50%,transparent 75%);
+  animation:fp-glow-pulse 3s ease-in-out infinite;
+}
+@keyframes fp-glow-pulse{0%,100%{transform:scale(1);opacity:0.8}50%{transform:scale(1.1);opacity:1}}
+
+.fp-svg{position:relative;z-index:2;width:280px;height:280px}
+.fp-svg .ridge{
+  fill:none;stroke:var(--primary);stroke-width:2.2;stroke-linecap:round;
+  opacity:0;animation:fp-reveal 0.6s ease forwards, fp-shimmer 4s ease-in-out infinite;
+}
+.fp-svg .ridge:nth-child(1){animation-delay:0.3s,1.5s}
+.fp-svg .ridge:nth-child(2){animation-delay:0.45s,1.7s}
+.fp-svg .ridge:nth-child(3){animation-delay:0.6s,1.9s}
+.fp-svg .ridge:nth-child(4){animation-delay:0.75s,2.1s}
+.fp-svg .ridge:nth-child(5){animation-delay:0.9s,2.3s}
+.fp-svg .ridge:nth-child(6){animation-delay:1.05s,2.5s}
+.fp-svg .ridge:nth-child(7){animation-delay:1.2s,2.7s}
+.fp-svg .ridge:nth-child(8){animation-delay:1.35s,2.9s}
+.fp-svg .ridge:nth-child(9){animation-delay:1.5s,3.1s}
+.fp-svg .ridge:nth-child(10){animation-delay:1.65s,3.3s}
+.fp-svg .ridge:nth-child(11){animation-delay:1.8s,3.5s}
+.fp-svg .ridge:nth-child(12){animation-delay:1.95s,3.7s}
+.fp-svg .ridge:nth-child(13){animation-delay:2.1s,3.9s}
+.fp-svg .ridge:nth-child(14){animation-delay:2.25s,4.1s}
+@keyframes fp-reveal{0%{opacity:0;stroke-dashoffset:600}100%{opacity:0.75;stroke-dashoffset:0}}
+@keyframes fp-shimmer{0%,100%{opacity:0.55;stroke:var(--primary)}50%{opacity:0.9;stroke:#60e4ff}}
+.fp-svg .ridge{stroke-dasharray:600;stroke-dashoffset:600}
+
+.fp-scanline{
+  position:absolute;left:10%;right:10%;height:2px;top:15%;
+  background:linear-gradient(90deg,transparent,var(--primary),rgba(0,212,255,0.6),var(--primary),transparent);
+  box-shadow:0 0 20px var(--primary),0 0 40px var(--primary-glow);
+  animation:scan 3s ease-in-out infinite;z-index:3;border-radius:2px;
+}
+@keyframes scan{
+  0%{top:15%;opacity:0}
+  10%{opacity:1}
+  90%{opacity:1}
+  100%{top:82%;opacity:0}
+}
+
+.fp-rings{position:absolute;inset:0;z-index:1}
+.fp-ring{
+  position:absolute;inset:0;border-radius:50%;border:1px solid rgba(0,212,255,0.12);
+  animation:ring-pulse 3s ease-in-out infinite;
+}
+.fp-ring:nth-child(1){animation-delay:0s}
+.fp-ring:nth-child(2){inset:-20px;animation-delay:0.6s;border-color:rgba(0,212,255,0.07)}
+.fp-ring:nth-child(3){inset:-40px;animation-delay:1.2s;border-color:rgba(0,212,255,0.04)}
+@keyframes ring-pulse{0%,100%{transform:scale(1);opacity:0.7}50%{transform:scale(1.03);opacity:1}}
+
+.fp-badge{
+  position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(10,10,10,0.9);border:1px solid rgba(0,212,255,0.3);
+  backdrop-filter:blur(12px);border-radius:100px;
+  padding:8px 18px;z-index:10;white-space:nowrap;
+  animation:badge-appear 0.5s ease 2.8s both;
+  box-shadow:0 4px 24px rgba(0,0,0,0.5),0 0 0 1px rgba(0,212,255,0.1);
+}
+@keyframes badge-appear{from{opacity:0;transform:translateX(-50%) scale(0.8)}to{opacity:1;transform:translateX(-50%) scale(1)}}
+.fp-badge-check{
+  width:20px;height:20px;border-radius:50%;background:var(--primary);
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.7rem;color:#000;font-weight:900;
+  box-shadow:0 0 12px var(--primary);
+}
+.fp-badge-text{font-size:0.8rem;font-weight:600;color:var(--text);letter-spacing:-0.01em}
+.fp-badge-score{font-size:0.75rem;font-weight:700;color:var(--primary)}
+
+.fp-corner{position:absolute;width:20px;height:20px;border-color:rgba(0,212,255,0.4);border-style:solid}
+.fp-corner-tl{top:0;left:0;border-width:1.5px 0 0 1.5px;border-radius:3px 0 0 0}
+.fp-corner-tr{top:0;right:0;border-width:1.5px 1.5px 0 0;border-radius:0 3px 0 0}
+.fp-corner-bl{bottom:20px;left:0;border-width:0 0 1.5px 1.5px;border-radius:0 0 0 3px}
+.fp-corner-br{bottom:20px;right:0;border-width:0 1.5px 1.5px 0;border-radius:0 0 3px 0}
+
+/* ── STACK STRIP ── */
+.stack-strip{
+  position:relative;z-index:1;
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:1.25rem 1.5rem;
+}
+.stack-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:2.5rem;flex-wrap:wrap;justify-content:center}
+.stack-label{font-size:0.75rem;font-weight:600;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase}
+.stack-divider{width:1px;height:16px;background:var(--border);flex-shrink:0}
+.stack-items{display:flex;align-items:center;gap:2rem;flex-wrap:wrap}
+.stack-item{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:0.83rem;font-weight:500;color:var(--muted2);
+  letter-spacing:-0.01em;transition:color 0.2s;cursor:default;
+}
+.stack-item:hover{color:var(--text)}
+.stack-item-dot{width:5px;height:5px;border-radius:50%;background:var(--primary);flex-shrink:0}
+
+/* ── SECTIONS ── */
+section{position:relative;z-index:1;padding:7rem 1.5rem}
+.section-inner{max-width:1200px;margin:0 auto}
+.section-label{font-size:0.72rem;font-weight:600;color:var(--primary);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1rem}
+.section-title{font-size:clamp(2rem,3.5vw,2.8rem);font-weight:800;line-height:1.1;letter-spacing:-0.04em;margin-bottom:1.5rem}
+.section-sub{font-size:1.05rem;line-height:1.7;color:var(--muted2);max-width:560px}
+.divider{border:none;border-top:1px solid var(--border);margin:0}
+
+/* ── HOW IT WORKS ── */
+.steps{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:0;margin-top:4rem;position:relative;
+}
+.steps::before{
+  content:'';position:absolute;top:28px;left:calc(12.5% + 16px);right:calc(12.5% + 16px);height:1px;
+  background:linear-gradient(90deg,var(--primary),var(--secondary));
+  opacity:0.25;
+}
+.step{padding:0 1.5rem;text-align:center;position:relative}
+.step-num{
+  width:56px;height:56px;border-radius:50%;
+  background:var(--bg);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 1.75rem;position:relative;
+  transition:all 0.3s;
+}
+.step-num::before{
+  content:'';position:absolute;inset:-1px;border-radius:50%;
+  background:linear-gradient(135deg,var(--primary),var(--secondary));
+  z-index:-1;opacity:0;transition:opacity 0.3s;
+}
+.step:hover .step-num{border-color:transparent;box-shadow:0 0 0 1px rgba(0,212,255,0.3),0 8px 24px rgba(0,212,255,0.15)}
+.step:hover .step-num::before{opacity:1}
+.step-num span{font-size:0.8rem;font-weight:700;color:var(--muted2);font-family:var(--mono)}
+.step-icon{font-size:1.4rem;margin-bottom:0.1rem}
+.step h3{font-size:1rem;font-weight:700;margin-bottom:0.6rem;letter-spacing:-0.025em}
+.step p{font-size:0.85rem;line-height:1.65;color:var(--muted2)}
+
+/* ── API TERMINAL ── */
+.terminal{
+  background:#0d0d0d;border:1px solid var(--border);
+  border-radius:12px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(255,255,255,0.03),0 32px 80px rgba(0,0,0,0.6);
+}
+.terminal-topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0.875rem 1.25rem;
+  background:rgba(255,255,255,0.03);border-bottom:1px solid var(--border);
+}
+.terminal-dots{display:flex;gap:6px}
+.terminal-dot{width:10px;height:10px;border-radius:50%}
+.td-r{background:#FF5F57}.td-y{background:#FFBD2E}.td-g{background:#28CA41}
+.terminal-title{font-size:0.78rem;color:var(--muted);font-family:var(--mono);letter-spacing:0.05em}
+.copy-btn{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--muted2);border-radius:6px;padding:4px 12px;
+  font-size:0.75rem;font-weight:600;cursor:pointer;
+  transition:all 0.2s;font-family:var(--mono);
+}
+.copy-btn:hover{background:rgba(255,255,255,0.1);border-color:var(--border-bright);color:var(--text)}
+.copy-btn.copied{background:rgba(0,212,255,0.1);border-color:rgba(0,212,255,0.3);color:var(--primary)}
+.terminal-body{padding:1.5rem 1.75rem;display:grid;grid-template-columns:1fr 1fr;gap:0}
+.terminal-col{padding:0.25rem 0}
+.terminal-col + .terminal-col{
+  padding-left:1.75rem;
+  border-left:1px solid var(--border);margin-left:1.75rem;
+}
+.terminal-section-label{
+  font-size:0.68rem;font-weight:600;color:var(--muted);
+  letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1rem;font-family:var(--mono);
+}
+pre{font-family:var(--mono);font-size:0.82rem;line-height:1.85;white-space:pre-wrap;word-break:break-all}
+.t-prompt{color:#4ade80}
+.t-cmd{color:#e2e8f0}
+.t-flag{color:var(--primary)}
+.t-string{color:#fbbf24}
+.t-key{color:var(--secondary);opacity:0.9}
+.t-val-bool{color:#4ade80}
+.t-val-str{color:#fbbf24}
+.t-val-num{color:var(--primary)}
+.t-punct{color:var(--muted)}
+.t-comment{color:var(--muted);font-style:italic}
+
+/* ── FEATURES ── */
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:3.5rem}
+.feat-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:2rem;transition:all 0.35s cubic-bezier(0.22,1,0.36,1);
+  position:relative;overflow:hidden;cursor:default;
+}
+.feat-card::before{
+  content:'';position:absolute;inset:-1px;border-radius:15px;
+  background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(123,47,255,0.12));
+  opacity:0;transition:opacity 0.3s;z-index:-1;
+}
+.feat-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--primary),transparent);
+  opacity:0;transition:opacity 0.3s;
+}
+.feat-card:hover{border-color:rgba(0,212,255,0.25);transform:translateY(-4px);box-shadow:0 20px 60px rgba(0,0,0,0.4),0 0 0 1px rgba(0,212,255,0.1),0 0 60px rgba(0,212,255,0.06)}
+.feat-card:hover::before{opacity:1}
+.feat-card:hover::after{opacity:1}
+.feat-icon{
+  width:44px;height:44px;border-radius:10px;
+  background:var(--primary-dim);border:1px solid rgba(0,212,255,0.15);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.2rem;margin-bottom:1.25rem;transition:all 0.3s;
+}
+.feat-card:nth-child(2n) .feat-icon{background:var(--secondary-dim);border-color:rgba(123,47,255,0.2)}
+.feat-card:hover .feat-icon{transform:scale(1.05);box-shadow:0 0 20px var(--primary-glow)}
+.feat-card h3{font-size:1rem;font-weight:700;margin-bottom:0.6rem;letter-spacing:-0.025em}
+.feat-card p{font-size:0.87rem;line-height:1.7;color:var(--muted2)}
+
+/* ── COMPARISON TABLE ── */
+.table-wrap{
+  margin-top:3.5rem;border-radius:14px;overflow:hidden;
+  border:1px solid var(--border);
+  box-shadow:0 0 0 1px rgba(255,255,255,0.02),0 40px 80px rgba(0,0,0,0.4);
+}
+table{width:100%;border-collapse:collapse;font-size:0.875rem}
+thead tr{background:rgba(255,255,255,0.04)}
+th{padding:1rem 1.25rem;text-align:center;font-weight:600;font-size:0.82rem;color:var(--muted2);letter-spacing:-0.01em;border-bottom:1px solid var(--border)}
+th:first-child{text-align:left;padding-left:1.75rem}
+th.poh-th{
+  background:rgba(0,212,255,0.06);color:var(--primary);
+  border-bottom:1px solid rgba(0,212,255,0.2);position:relative;
+}
+th.poh-th::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--primary),transparent);
+}
+tbody tr{transition:background 0.15s;border-bottom:1px solid var(--border)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(255,255,255,0.02)}
+td{padding:0.9rem 1.25rem;text-align:center;color:var(--muted2)}
+td:first-child{text-align:left;padding-left:1.75rem;font-weight:500;color:var(--text);font-size:0.875rem}
+td.poh-col{background:rgba(0,212,255,0.04);border-left:1px solid rgba(0,212,255,0.1);border-right:1px solid rgba(0,212,255,0.1)}
+.check-yes{color:#22C55E;font-weight:700;font-size:1rem}
+.check-no{color:#6B7280;font-size:1rem}
+.check-part{color:#F59E0B;font-size:0.8rem;font-weight:600}
+.table-note{margin-top:1rem;font-size:0.78rem;color:var(--muted);display:flex;gap:1.5rem;flex-wrap:wrap}
+.table-note span{display:inline-flex;align-items:center;gap:5px}
+
+/* ── FAQ ── */
+.faq-list{margin-top:3rem;display:flex;flex-direction:column;gap:0}
+.faq-item{border-bottom:1px solid var(--border)}
+.faq-item:first-child{border-top:1px solid var(--border)}
+.faq-btn{
+  width:100%;text-align:left;background:none;border:none;cursor:pointer;
+  padding:1.5rem 0;display:flex;align-items:flex-start;justify-content:space-between;gap:1.5rem;
+  color:var(--text);transition:all 0.2s;
+}
+.faq-btn:hover{color:var(--primary)}
+.faq-q-text{font-size:1rem;font-weight:600;line-height:1.4;letter-spacing:-0.02em}
+.faq-chevron{
+  width:20px;height:20px;border-radius:50%;
+  background:var(--surface2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  font-size:0.7rem;transition:all 0.3s;color:var(--muted);margin-top:2px;
+}
+.faq-item.open .faq-chevron{background:var(--primary-dim);border-color:rgba(0,212,255,0.3);color:var(--primary);transform:rotate(45deg)}
+.faq-body{max-height:0;overflow:hidden;transition:max-height 0.4s cubic-bezier(0.22,1,0.36,1)}
+.faq-body-inner{padding:0 0 1.75rem;font-size:0.9rem;line-height:1.8;color:var(--muted2);max-width:680px}
+
+/* ── CTA ── */
+.cta-section{position:relative;z-index:1;padding:8rem 1.5rem;text-align:center;overflow:hidden}
+.cta-glow{
+  position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 70% at 50% 50%,rgba(0,212,255,0.07) 0%,rgba(123,47,255,0.05) 40%,transparent 70%);
+}
+.cta-inner{max-width:680px;margin:0 auto;position:relative}
+.cta-eyebrow{font-size:0.72rem;font-weight:600;color:var(--primary);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1.25rem}
+.cta-title{font-size:clamp(2.4rem,5vw,4rem);font-weight:900;line-height:1.05;letter-spacing:-0.05em;margin-bottom:1.25rem}
+.cta-sub{font-size:1.05rem;line-height:1.7;color:var(--muted2);margin-bottom:3rem}
+.cta-btns{display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap}
+.btn-large{padding:1rem 2rem;font-size:0.95rem}
+.cta-caption{margin-top:1.75rem;font-size:0.8rem;color:var(--muted)}
+
+/* ── FOOTER ── */
+footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:2rem 1.5rem}
+.footer-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+.footer-left{font-size:0.82rem;color:var(--muted);letter-spacing:-0.01em}
+.footer-left strong{color:var(--muted2)}
+.footer-links{display:flex;align-items:center;gap:1.75rem}
+.footer-links a{font-size:0.82rem;color:var(--muted);text-decoration:none;transition:color 0.2s;letter-spacing:-0.01em}
+.footer-links a:hover{color:var(--text)}
+.footer-tagline{width:100%;text-align:center;font-size:0.78rem;color:var(--muted);letter-spacing:0.02em;padding-top:0.5rem}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(24px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes fadeIn{
+  from{opacity:0}to{opacity:1}
+}
+.fade-up{opacity:0;transform:translateY(28px);transition:opacity 0.65s cubic-bezier(0.22,1,0.36,1),transform 0.65s cubic-bezier(0.22,1,0.36,1)}
+.fade-up.visible{opacity:1;transform:none}
+.fade-up-d1{transition-delay:0.1s}.fade-up-d2{transition-delay:0.2s}.fade-up-d3{transition-delay:0.3s}
+.fade-up-d4{transition-delay:0.4s}.fade-up-d5{transition-delay:0.5s}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .nav-links{display:none}.hamburger{display:flex}
+  .hero-inner{grid-template-columns:1fr;gap:3.5rem}
+  .fp-wrapper{order:-1}
+  .fp-stage{width:280px;height:280px}
+  .fp-svg{width:220px;height:220px}
+  .steps{grid-template-columns:1fr 1fr;gap:2.5rem}
+  .steps::before{display:none}
+  .features-grid{grid-template-columns:1fr}
+  .terminal-body{grid-template-columns:1fr}
+  .terminal-col+.terminal-col{border-left:none;border-top:1px solid var(--border);margin-left:0;padding-left:0;margin-top:1.25rem;padding-top:1.25rem}
+  table{font-size:0.78rem}
+  th,td{padding:0.75rem 0.6rem}
+  th:first-child,td:first-child{padding-left:0.9rem}
+  .footer-inner{justify-content:center;text-align:center}
+}
+@media(max-width:480px){
+  .steps{grid-template-columns:1fr}
+  .hero{padding:120px 1.25rem 80px}
+}
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<!-- Background -->
+<div class="grid-bg"></div>
+<div class="orb-container">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<!-- ── NAV ── -->
+<nav id="navbar">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="logo-mark">
+        <div class="logo-dot"></div>
+        <div class="logo-ring"></div>
+      </div>
+      Proof of Human
+    </a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#api">API</a>
+      <a href="#features">Features</a>
+      <a href="#compare">Compare</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/patgirilu44-svg/proof-of-human/releases" class="nav-cta" target="_blank" rel="noopener">Download APK</a>
+    </div>
+    <button class="hamburger" id="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobile-menu">
+  <a href="#how" class="mobile-nav-link">How it works</a>
+  <a href="#api" class="mobile-nav-link">API</a>
+  <a href="#features" class="mobile-nav-link">Features</a>
+  <a href="#compare" class="mobile-nav-link">Compare</a>
+  <a href="#faq" class="mobile-nav-link">FAQ</a>
+  <a href="https://github.com/patgirilu44-svg/proof-of-human/releases" class="nav-cta mobile-nav-link" target="_blank" rel="noopener">Download APK Free</a>
+</div>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-left">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        Open Source &nbsp;·&nbsp; v0.1.0
+      </div>
+      <h1>
+        Prove You're Human.<br/>
+        <span class="grad">Not a Bot.</span>
+      </h1>
+      <p class="hero-sub">
+        Tap a moving dot five times. Get a signed proof. One API call to verify. No KYC, no orb, no biometrics stored — just cryptographic evidence of humanity.
+      </p>
+      <div class="hero-actions">
+        <a href="https://github.com/patgirilu44-svg/proof-of-human/releases" class="btn-primary" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download APK Free
+        </a>
+        <a href="https://github.com/patgirilu44-svg/proof-of-human" class="btn-secondary" target="_blank" rel="noopener">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+          View on GitHub
+        </a>
+      </div>
+      <div class="hero-pills">
+        <span class="pill"><span class="pill-dot pill-dot-cyan"></span>$0.10 / verify</span>
+        <span class="pill"><span class="pill-dot pill-dot-purple"></span>24h valid</span>
+        <span class="pill"><span class="pill-dot pill-dot-green"></span>Zero PII stored</span>
+      </div>
+    </div>
+
+    <div class="fp-wrapper">
+      <div class="fp-stage">
+        <div class="fp-glow-bg"></div>
+        <div class="fp-rings">
+          <div class="fp-ring"></div>
+          <div class="fp-ring"></div>
+          <div class="fp-ring"></div>
+        </div>
+        <!-- Fingerprint SVG -->
+        <svg class="fp-svg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
+          <!-- Outer arches -->
+          <path class="ridge" d="M50 210 C50 90 230 90 230 210" stroke-dasharray="500" />
+          <path class="ridge" d="M65 220 C65 100 215 100 215 220" stroke-dasharray="480" />
+          <path class="ridge" d="M80 228 C80 112 200 112 200 228" stroke-dasharray="450" />
+          <!-- Mid arches -->
+          <path class="ridge" d="M95 234 C95 124 185 124 185 234" stroke-dasharray="420" />
+          <path class="ridge" d="M110 238 C110 136 170 136 170 238" stroke-dasharray="390" />
+          <path class="ridge" d="M122 240 C122 146 158 146 158 240" stroke-dasharray="360" />
+          <!-- Inner arches -->
+          <path class="ridge" d="M134 240 C134 155 146 155 146 240" stroke-dasharray="300" />
+          <!-- Whorl center -->
+          <path class="ridge" d="M140 155 C155 155 162 162 162 175 C162 188 155 195 140 195 C125 195 118 188 118 175 C118 162 125 155 140 155" stroke-dasharray="250" />
+          <path class="ridge" d="M140 162 C152 162 158 168 158 175 C158 182 152 188 140 188 C128 188 122 182 122 175 C122 168 128 162 140 162" stroke-dasharray="220" />
+          <!-- Vertical ridges connecting top -->
+          <path class="ridge" d="M100 80 C90 90 80 110 78 130" stroke-dasharray="150" />
+          <path class="ridge" d="M140 70 C140 80 140 100 140 120" stroke-dasharray="130" />
+          <path class="ridge" d="M180 80 C190 90 200 110 202 130" stroke-dasharray="150" />
+          <!-- Top arch -->
+          <path class="ridge" d="M80 100 C80 55 200 55 200 100" stroke-dasharray="380" />
+        </svg>
+        <div class="fp-scanline"></div>
+        <div class="fp-corner fp-corner-tl"></div>
+        <div class="fp-corner fp-corner-tr"></div>
+        <div class="fp-corner fp-corner-bl"></div>
+        <div class="fp-corner fp-corner-br"></div>
+        <div class="fp-badge">
+          <div class="fp-badge-check">✓</div>
+          <span class="fp-badge-text">Identity Verified</span>
+          <span class="fp-badge-score">0.96</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── STACK STRIP ── -->
+<div class="stack-strip fade-up">
+  <div class="stack-inner">
+    <span class="stack-label">Built with</span>
+    <div class="stack-divider"></div>
+    <div class="stack-items">
+      <span class="stack-item"><span class="stack-item-dot"></span>Flutter</span>
+      <span class="stack-item"><span class="stack-item-dot"></span>Play Integrity</span>
+      <span class="stack-item"><span class="stack-item-dot"></span>TFLite ML</span>
+      <span class="stack-item"><span class="stack-item-dot"></span>Vercel Edge</span>
+      <span class="stack-item"><span class="stack-item-dot"></span>Redis</span>
+    </div>
+  </div>
+</div>
+
+<hr class="divider"/>
+
+<!-- ── HOW IT WORKS ── -->
+<section id="how">
+  <div class="section-inner">
+    <div class="fade-up" style="text-align:center">
+      <div class="section-label">How it works</div>
+      <h2 class="section-title" style="margin:0 auto 0.75rem">Four steps to <span class="grad">verified humanity</span></h2>
+      <p class="section-sub" style="margin:0 auto;text-align:center">No hardware. No biometrics. No waiting. Your phone and a tap are all you need.</p>
+    </div>
+    <div class="steps fade-up fade-up-d2">
+      <div class="step">
+        <div class="step-num"><span>01</span></div>
+        <div class="step-icon">📲</div>
+        <h3>Download APK</h3>
+        <p>Sideload the open-source Flutter app from GitHub Releases. Android only, no Play Store required.</p>
+      </div>
+      <div class="step">
+        <div class="step-num"><span>02</span></div>
+        <div class="step-icon">👆</div>
+        <h3>Behavior Challenge</h3>
+        <p>Tap a moving dot 5 times. On-device TFLite model scores your gesture — bots can't fake human timing and pressure.</p>
+      </div>
+      <div class="step">
+        <div class="step-num"><span>03</span></div>
+        <div class="step-icon">🔐</div>
+        <h3>Get Your Proof</h3>
+        <p>Receive a signed JWT with nullifier, device_hash, and behavior_score. Valid 24 hours. No personal data inside.</p>
+      </div>
+      <div class="step">
+        <div class="step-num"><span>04</span></div>
+        <div class="step-icon">⚡</div>
+        <h3>Projects Verify</h3>
+        <p>POST the JWT to our API. Get <code style="font-family:var(--mono);color:var(--primary);font-size:0.82rem">valid: true</code> back in milliseconds. Done.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── API ── -->
+<section id="api">
+  <div class="section-inner">
+    <div class="fade-up">
+      <div class="section-label">API</div>
+      <h2 class="section-title">One endpoint.<br/><span class="grad">Ship in minutes.</span></h2>
+      <p class="section-sub">No API key for the first 1,000 calls. No SDK. No wrapper. Just curl.</p>
+    </div>
+    <div class="terminal fade-up fade-up-d2" style="margin-top:3rem">
+      <div class="terminal-topbar">
+        <div class="terminal-dots">
+          <div class="terminal-dot td-r"></div>
+          <div class="terminal-dot td-y"></div>
+          <div class="terminal-dot td-g"></div>
+        </div>
+        <span class="terminal-title">bash</span>
+        <button class="copy-btn" id="copyBtn" onclick="copyCode()">Copy</button>
+      </div>
+      <div class="terminal-body">
+        <div class="terminal-col">
+          <div class="terminal-section-label">Request</div>
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">curl</span> <span class="t-flag">-X POST</span> \
+  <span class="t-string">https://poh-api.vercel.app/api/verify</span> \
+  <span class="t-flag">-H</span> <span class="t-string">"Content-Type: application/json"</span> \
+  <span class="t-flag">-d</span> <span class="t-string">'{
+    "proof": "eyJhbGciOiJFUzI1NiJ9..."
+  }'</span></pre>
+        </div>
+        <div class="terminal-col">
+          <div class="terminal-section-label">Response 200</div>
+          <pre><span class="t-punct">{</span>
+  <span class="t-key">"valid"</span><span class="t-punct">:</span> <span class="t-val-bool">true</span><span class="t-punct">,</span>
+  <span class="t-key">"nullifier"</span><span class="t-punct">:</span> <span class="t-val-str">"0xa3f9...c8d2"</span><span class="t-punct">,</span>
+  <span class="t-key">"human_score"</span><span class="t-punct">:</span> <span class="t-val-num">0.96</span><span class="t-punct">,</span>
+  <span class="t-key">"expires_at"</span><span class="t-punct">:</span> <span class="t-val-str">"2026-04-09T..."</span>
+<span class="t-punct">}</span></pre>
+          <p style="margin-top:1.25rem;font-size:0.78rem;color:var(--muted);font-family:var(--mono)"><span style="color:#22C55E">●</span> score ≥ 0.85 = human &nbsp; <span style="color:#6B7280">●</span> nullifier prevents replay</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── FEATURES ── -->
+<section id="features">
+  <div class="section-inner">
+    <div class="fade-up">
+      <div class="section-label">Features</div>
+      <h2 class="section-title">Built different.<br/><span class="grad">For a reason.</span></h2>
+    </div>
+    <div class="features-grid">
+      <div class="feat-card fade-up fade-up-d1">
+        <div class="feat-icon">📱</div>
+        <h3>Mobile-Native</h3>
+        <p>Built entirely in Flutter. The verification happens on a real Android device — where 3B+ humans already live.</p>
+      </div>
+      <div class="feat-card fade-up fade-up-d2">
+        <div class="feat-icon">🧠</div>
+        <h3>On-Device ML</h3>
+        <p>TFLite model scores your tap gesture locally. Your behavior data never leaves your phone. Score ≥ 0.85 proves humanity.</p>
+      </div>
+      <div class="feat-card fade-up fade-up-d3">
+        <div class="feat-icon">🛡️</div>
+        <h3>Play Integrity</h3>
+        <p>Google Play Integrity API confirms a genuine, unmodified Android device. Emulators, rooted phones, and bots are rejected at the gate.</p>
+      </div>
+      <div class="feat-card fade-up fade-up-d1">
+        <div class="feat-icon">🔁</div>
+        <h3>Replay Protection</h3>
+        <p>Every proof contains a cryptographic nullifier stored in Redis with 24h TTL. The same JWT can never be used twice.</p>
+      </div>
+      <div class="feat-card fade-up fade-up-d2">
+        <div class="feat-icon">⚡</div>
+        <h3>One API Call</h3>
+        <p>POST a JWT, get a boolean back. No SDK. No dependency. No ceremony. If you can curl, you can integrate in under five minutes.</p>
+      </div>
+      <div class="feat-card fade-up fade-up-d3">
+        <div class="feat-icon">💰</div>
+        <h3>$0.10 / Verify</h3>
+        <p>Flat rate. No tiers, no minimums. First 1,000 verifications are completely free — no credit card, no KYC to start.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── COMPARE ── -->
+<section id="compare">
+  <div class="section-inner">
+    <div class="fade-up">
+      <div class="section-label">Compare</div>
+      <h2 class="section-title">How we stack up</h2>
+      <p class="section-sub">Honest comparison. We're early. But the fundamentals are right.</p>
+    </div>
+    <div class="table-wrap fade-up fade-up-d2" style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th class="poh-th">Proof of Human</th>
+            <th>Worldcoin</th>
+            <th>Gitcoin Passport</th>
+            <th>Civic</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Privacy-preserving</td>
+            <td class="poh-col"><span class="check-yes">✓</span></td>
+            <td><span class="check-no">✗</span></td>
+            <td><span class="check-part">Partial</span></td>
+            <td><span class="check-part">Partial</span></td>
+          </tr>
+          <tr>
+            <td>No hardware required</td>
+            <td class="poh-col"><span class="check-yes">✓</span></td>
+            <td><span class="check-no">✗</span></td>
+            <td><span class="check-yes">✓</span></td>
+            <td><span class="check-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Mobile-native verification</td>
+            <td class="poh-col"><span class="check-yes">✓</span></td>
+            <td><span class="check-no">✗</span></td>
+            <td><span class="check-no">✗</span></td>
+            <td><span class="check-part">Partial</span></td>
+          </tr>
+          <tr>
+            <td>No biometric storage</td>
+            <td class="poh-col"><span class="check-yes">✓</span></td>
+            <td><span class="check-no">✗</span></td>
+            <td><span class="check-yes">✓</span></td>
+            <td><span class="check-part">Partial</span></td>
+          </tr>
+          <tr>
+            <td>Simple REST API</td>
+            <td class="poh-col"><span class="check-yes">✓</span></td>
+            <td><span class="check-part">Partial</span></td>
+            <td><span class="check-no">✗</span></td>
+            <td><span class="check-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>No KYC required</td>
+            <td class="poh-col"><span class="check-yes">✓</span></td>
+            <td><span class="check-no">✗</span></td>
+            <td><span class="check-no">✗</span></td>
+            <td><span class="check-no">✗</span></td>
+          </tr>
+          <tr>
+            <td>Under $0.50/verify</td>
+            <td class="poh-col"><span class="check-yes">✓</span></td>
+            <td><span class="check-no">✗</span></td>
+            <td><span class="check-part">Partial</span></td>
+            <td><span class="check-part">Partial</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-note fade-up fade-up-d3">
+      <span><span class="check-yes">✓</span> Fully supported</span>
+      <span><span class="check-part">Partial</span> Limited or partial</span>
+      <span><span class="check-no">✗</span> Not supported</span>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── FAQ ── -->
+<section id="faq">
+  <div class="section-inner" style="max-width:760px">
+    <div class="fade-up">
+      <div class="section-label">FAQ</div>
+      <h2 class="section-title">Common <span class="grad">questions</span></h2>
+    </div>
+    <div class="faq-list fade-up fade-up-d2">
+
+      <div class="faq-item" id="faq-1">
+        <button class="faq-btn" onclick="toggleFaq('faq-1')">
+          <span class="faq-q-text">Is any of my data stored on your servers?</span>
+          <span class="faq-chevron">+</span>
+        </button>
+        <div class="faq-body">
+          <div class="faq-body-inner">
+            No personal data is stored anywhere. The server stores only a cryptographic nullifier — a random hex string — in Redis with a 24-hour TTL. Its sole purpose is preventing replay attacks. Your <code style="font-family:var(--mono);color:var(--primary);font-size:0.88em">device_hash</code> and <code style="font-family:var(--mono);color:var(--primary);font-size:0.88em">behavior_score</code> exist only inside the signed JWT on your device. No email. No name. No biometrics stored.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item" id="faq-2">
+        <button class="faq-btn" onclick="toggleFaq('faq-2')">
+          <span class="faq-q-text">How does sybil resistance actually work?</span>
+          <span class="faq-chevron">+</span>
+        </button>
+        <div class="faq-body">
+          <div class="faq-body-inner">
+            Two independent layers: <strong style="color:var(--text)">1)</strong> Google Play Integrity API confirms your device is a genuine, unmodified Android phone — not an emulator, not a rooted device. <strong style="color:var(--text)">2)</strong> An on-device TFLite ML model scores your tap gesture against patterns bots cannot replicate — timing variance, pressure, trajectory. A behavior score ≥ 0.85 is required. Both layers must pass to generate a valid proof.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item" id="faq-3">
+        <button class="faq-btn" onclick="toggleFaq('faq-3')">
+          <span class="faq-q-text">How do I integrate this into my airdrop or dApp?</span>
+          <span class="faq-chevron">+</span>
+        </button>
+        <div class="faq-body">
+          <div class="faq-body-inner">
+            One API call: <code style="font-family:var(--mono);color:var(--primary);font-size:0.88em">POST https://poh-api.vercel.app/api/verify</code> with the user's JWT proof in the request body. You receive <code style="font-family:var(--mono);color:var(--primary);font-size:0.88em">{ valid: true, nullifier: "0x...", human_score: 0.96 }</code> back. First 1,000 verifications are completely free — no API key required. For volume access, reach out on Twitter <a href="https://twitter.com/ProofOfHumanApp" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none">@ProofOfHumanApp</a>.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section">
+  <div class="cta-glow"></div>
+  <div class="cta-inner fade-up">
+    <div class="cta-eyebrow">Get Started</div>
+    <h2 class="cta-title">
+      Stop bots.<br/>
+      <span class="grad">Start building.</span>
+    </h2>
+    <p class="cta-sub">First 1,000 verifications free. No credit card. No KYC.<br/>Deploy in 5 minutes with a single API endpoint.</p>
+    <div class="cta-btns">
+      <a href="https://github.com/patgirilu44-svg/proof-of-human/releases" class="btn-primary btn-large" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download APK Free
+      </a>
+      <a href="https://github.com/patgirilu44-svg/proof-of-human" class="btn-secondary btn-large" target="_blank" rel="noopener">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+        View on GitHub
+      </a>
+    </div>
+    <p class="cta-caption">Open source · MIT license · Built solo on an Android phone in Termux</p>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-left">© 2026 <strong>Proof of Human</strong></div>
+    <div class="footer-links">
+      <a href="https://github.com/patgirilu44-svg/proof-of-human" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://twitter.com/ProofOfHumanApp" target="_blank" rel="noopener">Twitter</a>
+      <a href="https://poh-api.vercel.app/api/verify" target="_blank" rel="noopener">API</a>
+    </div>
+    <div class="footer-tagline">Built on a phone. Shipped to the world.</div>
+  </div>
+</footer>
+
+<script>
+// ── Scroll progress ──
+const progressBar = document.getElementById('progress-bar');
+window.addEventListener('scroll', () => {
+  const el = document.documentElement;
+  const pct = (el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100;
+  progressBar.style.width = pct + '%';
+}, {passive: true});
+
+// ── Sticky nav ──
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  navbar.classList.toggle('scrolled', window.scrollY > 20);
+}, {passive: true});
+
+// ── Hamburger ──
+const hamburger = document.getElementById('hamburger');
+const mobileMenu = document.getElementById('mobile-menu');
+hamburger.addEventListener('click', () => {
+  hamburger.classList.toggle('open');
+  mobileMenu.classList.toggle('open');
+});
+document.querySelectorAll('.mobile-nav-link').forEach(link => {
+  link.addEventListener('click', () => {
+    hamburger.classList.remove('open');
+    mobileMenu.classList.remove('open');
+  });
+});
+
+// ── Intersection Observer ──
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      observer.unobserve(entry.target);
+    }
+  });
+}, {threshold: 0.1, rootMargin: '0px 0px -40px 0px'});
+document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+// ── FAQ accordion ──
+function toggleFaq(id) {
+  const item = document.getElementById(id);
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item').forEach(i => {
+    i.classList.remove('open');
+    i.querySelector('.faq-body').style.maxHeight = null;
+    i.querySelector('.faq-chevron').textContent = '+';
+  });
+  if (!isOpen) {
+    item.classList.add('open');
+    const body = item.querySelector('.faq-body');
+    body.style.maxHeight = body.scrollHeight + 'px';
+    item.querySelector('.faq-chevron').textContent = '×';
+  }
+}
+
+// ── Copy code ──
+function copyCode() {
+  const code = `curl -X POST https://poh-api.vercel.app/api/verify \\\n  -H "Content-Type: application/json" \\\n  -d '{"proof": "YOUR_JWT_PROOF_HERE"}'`;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copy';
+  });
+}
+</script>
+</body>
+</html>
